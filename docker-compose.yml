@@ -1,0 +1,13 @@
+services:
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_ACCOUNT: "credentials.json"
+    volumes:
+      - ./data:/data
+    environment:
+      #      WORLD: world
+      DRIVE_BACKUP_DIR: "1pBX-Lt3upeb519D17_XK4PH-Mbzbmbud"
+      BACKUP_INTERVAL: 30s
