@@ -21,6 +21,8 @@ ENV VIRTUAL_ENV=/app/.venv \
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y cron && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
 COPY main.py .
@@ -28,4 +30,4 @@ COPY main.py .
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/entrypoint.sh", "python", "-u", "/app/main.py"]
+ENTRYPOINT ["/entrypoint.sh"]

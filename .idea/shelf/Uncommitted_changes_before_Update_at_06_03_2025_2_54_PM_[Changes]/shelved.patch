@@ -1,0 +1,611 @@
+Index: main.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import io\r\nimport os\r\nimport re\r\nimport tarfile\r\nimport time\r\nfrom datetime import datetime\r\n\r\nfrom google.oauth2 import service_account\r\nfrom googleapiclient.discovery import build\r\nfrom googleapiclient.http import MediaIoBaseUpload\r\n\r\n# Define variables\r\nDIRECTORY = os.getenv('DIRECTORY')\r\nSERVICE_ACCOUNT = os.getenv('SERVICE_ACCOUNT', 'service-account.json')\r\nDRIVE_BACKUP_DIR = os.getenv('DRIVE_BACKUP_DIR')\r\nBACKUP_INTERVAL = os.getenv('BACKUP_INTERVAL', '1d')\r\nFILE_PREFIX = os.getenv('FILE_PREFIX', 'backup')\r\n\r\ndef sleep(duration: str):\r\n    # Dictionary to convert units to seconds\r\n    unit_to_seconds = {\r\n        's': 1,\r\n        'h': 3600,\r\n        'd': 86400,\r\n        'm': 30 * 86400,  # Assuming 30 days per month\r\n        'y': 365 * 86400  # Assuming 365 days per year\r\n    }\r\n\r\n    # Regular expression to match the duration string (number followed by a unit)\r\n    pattern = re.compile(r'(\\d+)([shdmy])')\r\n\r\n    # Find all matches in the input string\r\n    matches = pattern.findall(duration)\r\n\r\n    if not matches:\r\n        raise ValueError(\"Invalid duration string format\")\r\n\r\n    total_seconds = 0\r\n\r\n    # Calculate total seconds\r\n    for value, unit in matches:\r\n        total_seconds += int(value) * unit_to_seconds[unit]\r\n\r\n    time.sleep(total_seconds)\r\n\r\n\r\ndef create_backup(directory: str = DIRECTORY) -> io.BytesIO:\r\n    archive = io.BytesIO()\r\n    with tarfile.open(fileobj=archive, mode='w:gz') as tar:\r\n        tar.add(f'{directory}', arcname=f'/')\r\n\r\n    archive.seek(0)\r\n\r\n    return archive\r\n\r\n\r\ndef upload_to_gdrive(archive: io.BytesIO):\r\n    creds = service_account.Credentials.from_service_account_file(\r\n        SERVICE_ACCOUNT,\r\n        scopes=['https://www.googleapis.com/auth/drive.file']\r\n    )\r\n    service = build('drive', 'v3', credentials=creds)\r\n\r\n    file_name = f'{FILE_PREFIX}_{datetime.now().strftime(\"%Y-%m-%d_%H-%M-%S\")}.tar.gz'\r\n\r\n    file_metadata = {\r\n        'name': file_name,\r\n        'parents': [DRIVE_BACKUP_DIR]\r\n    }\r\n    media = MediaIoBaseUpload(archive, mimetype='application/gzip')\r\n    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()\r\n\r\n    return f'https://drive.google.com/file/d/{file[\"id\"]}'\r\n\r\n\r\ndef backup():\r\n    print('Creating backup...')\r\n\r\n    archive = create_backup()\r\n    file_url = upload_to_gdrive(archive)\r\n    archive.close()\r\n\r\n    print(f'Backup created successfully! {file_url}')\r\n    print(f'Next backup in {BACKUP_INTERVAL}')\r\n\r\n\r\nif __name__ == '__main__':\r\n    print(f'Backup process started! Sleeping for {BACKUP_INTERVAL} before first backup...')\r\n    sleep(BACKUP_INTERVAL)\r\n    while True:\r\n        backup()\r\n        sleep(BACKUP_INTERVAL)\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/main.py b/main.py
+--- a/main.py	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/main.py	(date 1741243915812)
+@@ -1,8 +1,6 @@
+ import io
+ import os
+-import re
+ import tarfile
+-import time
+ from datetime import datetime
+ 
+ from google.oauth2 import service_account
+@@ -10,38 +8,10 @@
+ from googleapiclient.http import MediaIoBaseUpload
+ 
+ # Define variables
+-DIRECTORY = os.getenv('DIRECTORY')
+-SERVICE_ACCOUNT = os.getenv('SERVICE_ACCOUNT', 'service-account.json')
+-DRIVE_BACKUP_DIR = os.getenv('DRIVE_BACKUP_DIR')
+-BACKUP_INTERVAL = os.getenv('BACKUP_INTERVAL', '1d')
+-FILE_PREFIX = os.getenv('FILE_PREFIX', 'backup')
+-
+-def sleep(duration: str):
+-    # Dictionary to convert units to seconds
+-    unit_to_seconds = {
+-        's': 1,
+-        'h': 3600,
+-        'd': 86400,
+-        'm': 30 * 86400,  # Assuming 30 days per month
+-        'y': 365 * 86400  # Assuming 365 days per year
+-    }
+-
+-    # Regular expression to match the duration string (number followed by a unit)
+-    pattern = re.compile(r'(\d+)([shdmy])')
+-
+-    # Find all matches in the input string
+-    matches = pattern.findall(duration)
+-
+-    if not matches:
+-        raise ValueError("Invalid duration string format")
+-
+-    total_seconds = 0
+-
+-    # Calculate total seconds
+-    for value, unit in matches:
+-        total_seconds += int(value) * unit_to_seconds[unit]
+-
+-    time.sleep(total_seconds)
++DIRECTORY = os.getenv('BACKUP_DIRECTORY')
++SERVICE_ACCOUNT = '/service-account.json'
++DRIVE_BACKUP_DIR = os.getenv('GDRIVE_BACKUP_FOLDER_ID')
++BACKUP_FILE_NAME_PREFIX = os.getenv('FILE_PREFIX', 'backup')
+ 
+ 
+ def create_backup(directory: str = DIRECTORY) -> io.BytesIO:
+@@ -73,7 +43,7 @@
+     return f'https://drive.google.com/file/d/{file["id"]}'
+ 
+ 
+-def backup():
++if __name__ == '__main__':
+     print('Creating backup...')
+ 
+     archive = create_backup()
+@@ -81,12 +51,3 @@
+     archive.close()
+ 
+     print(f'Backup created successfully! {file_url}')
+-    print(f'Next backup in {BACKUP_INTERVAL}')
+-
+-
+-if __name__ == '__main__':
+-    print(f'Backup process started! Sleeping for {BACKUP_INTERVAL} before first backup...')
+-    sleep(BACKUP_INTERVAL)
+-    while True:
+-        backup()
+-        sleep(BACKUP_INTERVAL)
+Index: Dockerfile
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>FROM python:3.11-buster AS builder\r\n\r\nRUN pip install poetry\r\n\r\nENV POETRY_NO_INTERACTION=1 \\\r\n    POETRY_VIRTUALENVS_IN_PROJECT=1 \\\r\n    POETRY_VIRTUALENVS_CREATE=1 \\\r\n    POETRY_CACHE_DIR=/tmp/poetry_cache\r\n\r\nWORKDIR /app\r\n\r\nCOPY pyproject.toml poetry.lock ./\r\nRUN touch README.md\r\n\r\nRUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root\r\n\r\nFROM python:3.11-slim-buster AS runtime\r\n\r\nENV VIRTUAL_ENV=/app/.venv \\\r\n    PATH=\"/app/.venv/bin:$PATH\"\r\n\r\nWORKDIR /app\r\n\r\nCOPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}\r\n\r\nCOPY main.py .\r\n\r\nCOPY entrypoint.sh /entrypoint.sh\r\nRUN chmod +x /entrypoint.sh\r\n\r\nENTRYPOINT [\"/entrypoint.sh\", \"python\", \"-u\", \"/app/main.py\"]
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Dockerfile b/Dockerfile
+--- a/Dockerfile	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/Dockerfile	(date 1741243330082)
+@@ -25,7 +25,9 @@
+ 
+ COPY main.py .
+ 
++COPY backup.sh /backup.sh
+ COPY entrypoint.sh /entrypoint.sh
++
+ RUN chmod +x /entrypoint.sh
+ 
+-ENTRYPOINT ["/entrypoint.sh", "python", "-u", "/app/main.py"]
+\ No newline at end of file
++ENTRYPOINT ["/entrypoint.sh"]
+\ No newline at end of file
+Index: entrypoint.sh
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>#!/bin/sh\r\nset -e  # Exit on error\r\n\r\n# List of required environment variables\r\nrequired_env_vars=\"DIRECTORY DRIVE_BACKUP_DIR\"\r\nmissing_vars=\"\"\r\n\r\n# Check for missing environment variables\r\nfor var in $required_env_vars; do\r\n    if [ -z \"$(eval echo \\$$var)\" ]; then\r\n        missing_vars=\"$missing_vars $var\"\r\n    fi\r\ndone\r\n\r\n# Exit with error if any required variables are missing\r\nif [ -n \"$missing_vars\" ]; then\r\n    echo \"Missing required environment variables:$missing_vars\" >&2\r\n    echo \"- If you are using docker-compose, you can set these in the .env file.\" >&2\r\n    echo \"- If you are using docker run, you can set these with the -e flag. i.e docker run --name gdrive-backup -e DIRECTORY=/path/to/backup -e DRIVE_BACKUP_DIR=/path/to/drive/backup gdrive-backup\" >&2\r\n    echo \"  or you can use the --env-file flag to specify a file with the environment variables.\" >&2\r\n    exit 1\r\nfi\r\n\r\nexec \"$@\"\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/entrypoint.sh b/entrypoint.sh
+--- a/entrypoint.sh	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/entrypoint.sh	(date 1741243330089)
+@@ -1,18 +1,16 @@
+ #!/bin/sh
+ set -e  # Exit on error
+ 
+-# List of required environment variables
++# Check for required environment variables
+ required_env_vars="DIRECTORY DRIVE_BACKUP_DIR"
+ missing_vars=""
+ 
+-# Check for missing environment variables
+ for var in $required_env_vars; do
+     if [ -z "$(eval echo \$$var)" ]; then
+         missing_vars="$missing_vars $var"
+     fi
+ done
+ 
+-# Exit with error if any required variables are missing
+ if [ -n "$missing_vars" ]; then
+     echo "Missing required environment variables:$missing_vars" >&2
+     echo "- If you are using docker-compose, you can set these in the .env file." >&2
+@@ -21,4 +19,15 @@
+     exit 1
+ fi
+ 
+-exec "$@"
++# setup cron job
++BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"0 0 * * *"}
++
++echo "Setting up cron job with schedule: $BACKUP_SCHEDULE"
++echo "$BACKUP_SCHEDULE /backup.sh" > /etc/cron.d/backup
++
++chmod 0644 /etc/cron.d/backup
++
++crontab /etc/cron.d/backup
++
++echo "Starting cron..."
++exec cron -f
+Index: .gitignore
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>data\r\ncredentials.json
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.gitignore b/.gitignore
+--- a/.gitignore	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/.gitignore	(date 1741242214016)
+@@ -1,2 +1,179 @@
++# Created using gig (https://github.com/dev-laww/scripts) by tora.
++# Source: https://www.toptal.com/developers/gitignore/api/python
++# Templates: python
++
++### Python ###
++# Byte-compiled / optimized / DLL files
++__pycache__/
++*.py[cod]
++*$py.class
++
++# C extensions
++*.so
++
++# Distribution / packaging
++.Python
++build/
++develop-eggs/
++dist/
++downloads/
++eggs/
++.eggs/
++lib/
++lib64/
++parts/
++sdist/
++var/
++wheels/
++share/python-wheels/
++*.egg-info/
++.installed.cfg
++*.egg
++MANIFEST
++
++# PyInstaller
++#  Usually these files are written by a python script from a template
++#  before PyInstaller builds the exe, so as to inject date/other infos into it.
++*.manifest
++*.spec
++
++# Installer logs
++pip-log.txt
++pip-delete-this-directory.txt
++
++# Unit test / coverage reports
++htmlcov/
++.tox/
++.nox/
++.coverage
++.coverage.*
++.cache
++nosetests.xml
++coverage.xml
++*.cover
++*.py,cover
++.hypothesis/
++.pytest_cache/
++cover/
++
++# Translations
++*.mo
++*.pot
++
++# Django stuff:
++*.log
++local_settings.py
++db.sqlite3
++db.sqlite3-journal
++
++# Flask stuff:
++instance/
++.webassets-cache
++
++# Scrapy stuff:
++.scrapy
++
++# Sphinx documentation
++docs/_build/
++
++# PyBuilder
++.pybuilder/
++target/
++
++# Jupyter Notebook
++.ipynb_checkpoints
++
++# IPython
++profile_default/
++ipython_config.py
++
++# pyenv
++#   For a library or package, you might want to ignore these files since the code is
++#   intended to run in multiple environments; otherwise, check them in:
++# .python-version
++
++# pipenv
++#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
++#   However, in case of collaboration, if having platform-specific dependencies or dependencies
++#   having no cross-platform support, pipenv may install dependencies that don't work, or not
++#   install all needed dependencies.
++#Pipfile.lock
++
++# poetry
++#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
++#   This is especially recommended for binary packages to ensure reproducibility, and is more
++#   commonly ignored for libraries.
++#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
++#poetry.lock
++
++# pdm
++#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
++#pdm.lock
++#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
++#   in version control.
++#   https://pdm.fming.dev/#use-with-ide
++.pdm.toml
++
++# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
++__pypackages__/
++
++# Celery stuff
++celerybeat-schedule
++celerybeat.pid
++
++# SageMath parsed files
++*.sage.py
++
++# Environments
++.env
++.venv
++env/
++venv/
++ENV/
++env.bak/
++venv.bak/
++
++# Spyder project settings
++.spyderproject
++.spyproject
++
++# Rope project settings
++.ropeproject
++
++# mkdocs documentation
++/site
++
++# mypy
++.mypy_cache/
++.dmypy.json
++dmypy.json
++
++# Pyre type checker
++.pyre/
++
++# pytype static type analyzer
++.pytype/
++
++# Cython debug symbols
++cython_debug/
++
++# PyCharm
++#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
++#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
++#  and can be added to the global gitignore or merged into this file.  For a more nuclear
++#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
++#.idea/
++
++### Python Patch ###
++# Poetry local configuration file - https://python-poetry.org/docs/configuration/#local-configuration
++poetry.toml
++
++# ruff
++.ruff_cache/
++
++# LSP config files
++pyrightconfig.json
++
+ data
+-credentials.json
+\ No newline at end of file
++credentials.json
++docker-compose.yml
+\ No newline at end of file
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"PropertiesComponent\">{}</component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/.idea/workspace.xml	(date 1741243916136)
+@@ -1,4 +1,97 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+-  <component name="PropertiesComponent">{}</component>
++  <component name="AutoImportSettings">
++    <option name="autoReloadType" value="SELECTIVE" />
++  </component>
++  <component name="ChangeListManager">
++    <list default="true" id="623cc661-e752-4cbc-8e7c-3f950860289f" name="Changes" comment="chore: repo rename">
++      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/backup.sh" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/discord.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/discord.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/entrypoint.sh" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
++    </list>
++    <option name="SHOW_DIALOG" value="false" />
++    <option name="HIGHLIGHT_CONFLICTS" value="true" />
++    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
++    <option name="LAST_RESOLUTION" value="IGNORE" />
++  </component>
++  <component name="Git.Settings">
++    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
++  </component>
++  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
++  "lastFilter": {
++    "state": "OPEN",
++    "assignee": "dev-laww"
++  }
++}]]></component>
++  <component name="GithubPullRequestsUISettings"><![CDATA[{
++  "selectedUrlAndAccountId": {
++    "url": "https://github.com/dev-laww/gdrive-backup.git",
++    "accountId": "cd45bc23-dc91-4f4a-b162-953d71b69c9b"
++  }
++}]]></component>
++  <component name="ProjectColorInfo"><![CDATA[{
++  "associatedIndex": 4
++}]]></component>
++  <component name="ProjectId" id="2tvomVFtM347V7TMeuQ8QuXgpo0" />
++  <component name="ProjectViewState">
++    <option name="autoscrollToSource" value="true" />
++    <option name="hideEmptyMiddlePackages" value="true" />
++    <option name="openDirectoriesWithSingleClick" value="true" />
++    <option name="showLibraryContents" value="true" />
++  </component>
++  <component name="PropertiesComponent"><![CDATA[{
++  "keyToString": {
++    "RunOnceActivity.ShowReadmeOnStart": "true",
++    "RunOnceActivity.git.unshallow": "true",
++    "git-widget-placeholder": "main",
++    "last_opened_file_path": "D:/Projects/gdrive-backup",
++    "node.js.detected.package.eslint": "true",
++    "node.js.detected.package.tslint": "true",
++    "node.js.selected.package.eslint": "(autodetect)",
++    "node.js.selected.package.tslint": "(autodetect)",
++    "nodejs_package_manager_path": "npm"
++  }
++}]]></component>
++  <component name="SharedIndexes">
++    <attachedChunks>
++      <set>
++        <option value="bundled-js-predefined-d6986cc7102b-822845ee3bb5-JavaScript-PY-243.23654.177" />
++        <option value="bundled-python-sdk-91d3a02ef49d-43b77aa2d136-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-243.23654.177" />
++      </set>
++    </attachedChunks>
++  </component>
++  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
++  <component name="TaskManager">
++    <task active="true" id="Default" summary="Default task">
++      <changelist id="623cc661-e752-4cbc-8e7c-3f950860289f" name="Changes" comment="" />
++      <created>1741242067881</created>
++      <option name="number" value="Default" />
++      <option name="presentableId" value="Default" />
++      <updated>1741242067881</updated>
++      <workItem from="1741242069088" duration="1800000" />
++    </task>
++    <task id="LOCAL-00001" summary="chore: repo rename">
++      <option name="closed" value="true" />
++      <created>1741242148974</created>
++      <option name="number" value="00001" />
++      <option name="presentableId" value="LOCAL-00001" />
++      <option name="project" value="LOCAL" />
++      <updated>1741242148974</updated>
++    </task>
++    <option name="localTasksCounter" value="2" />
++    <servers />
++  </component>
++  <component name="TypeScriptGeneratedFilesManager">
++    <option name="version" value="3" />
++  </component>
++  <component name="VcsManagerConfiguration">
++    <MESSAGE value="chore: repo rename" />
++    <option name="LAST_COMMIT_MESSAGE" value="chore: repo rename" />
++  </component>
+ </project>
+\ No newline at end of file
+Index: .idea/vcs.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"VcsDirectoryMappings\" defaultProject=\"true\" />\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/vcs.xml b/.idea/vcs.xml
+--- a/.idea/vcs.xml	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/.idea/vcs.xml	(date 1741242471897)
+@@ -1,4 +1,6 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+-  <component name="VcsDirectoryMappings" defaultProject="true" />
++  <component name="VcsDirectoryMappings">
++    <mapping directory="" vcs="Git" />
++  </component>
+ </project>
+\ No newline at end of file
+Index: backup.sh
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/backup.sh b/backup.sh
+new file mode 100644
+--- /dev/null	(date 1741243073028)
++++ b/backup.sh	(date 1741243073028)
+@@ -0,0 +1,1 @@
++python -u /app/main.py > /var/log/backup.log 2>&1
+\ No newline at end of file
+Index: README.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/README.md b/README.md
+new file mode 100644
+--- /dev/null	(date 1741243915803)
++++ b/README.md	(date 1741243915803)
+@@ -0,0 +1,94 @@
++Below is a complete README file for your GDrive Backup Docker Image:
++
++---
++
++# GDrive Backup Docker Image
++
++This Docker image provides an automated solution for backing up a specified directory to a Google Drive folder. It
++leverages a service account for secure authentication and uses a cron schedule to perform regular backups. With volume
++support, your backup data remains persistent even if the container is restarted or recreated.
++
++## Features
++
++- **Automated Backups:**  
++  Configurable backup schedule using cron syntax (default is every day at midnight).
++
++- **Google Drive Integration:**  
++  Uploads backup files to a specified Google Drive folder using a service account.
++
++- **Customizable File Naming:**  
++  Optionally add a prefix to your backup file names for easy identification.
++
++- **Persistent Storage:**  
++  Attach a Docker volume to keep backup data safe between container restarts.
++
++## Prerequisites
++
++- Docker installed on your system.
++- A valid Google Cloud service account with permissions to access Google Drive.
++- The Google Drive folder ID where you want to store backups.
++
++## Usage
++
++Run the container with the following command. In this example, you mount the directory you want to back up to
++`/path/in/container`:
++
++```bash
++docker run --name gdrive-backup \
++  -e GDRIVE_BACKUP_FOLDER_ID=<folder_id> \
++  -e BACKUP_DIRECTORY=<directory-to-backup> \
++  -v /local/backup-directory:/path/in/container \
++  -v /path/to/service-account.json:/service-account.json \
++  -d gdrive-backup
++```
++
++**Notes:**
++
++- Replace `<folder_id>` with your Google Drive folder ID.
++- Replace `<directory-to-backup>` with the internal directory path that the container will back up. This should match
++  the mount point (`/path/in/container` or `/path/in/container/subfolder`).
++- Replace `/local/backup-directory` with the path on your host where the data is stored.
++
++## Environment Variables
++
++- **`GDRIVE_BACKUP_FOLDER_ID`**  
++  *Description:* Google Drive folder ID where the backup will be stored.
++- **`BACKUP_DIRECTORY`**  
++  *Description:* Directory to back up. This should match the directory mounted to `/path/in/container` in the container.
++- **`BACKUP_INTERVAL`**  
++  *Description:* Interval for performing backups in cron format.  
++  *Default:* `0 0 * * *` (every day at midnight)
++- **`BACKUP_FILE_NAME_PREFIX`**  
++  *Description:* Prefix for the backup file name for easy identification.  
++  *Default:* `backup`
++
++## How It Works
++
++1. **Backup Execution:**  
++   The container uses the specified `BACKUP_DIRECTORY` to create a backup archive at intervals defined by
++   `BACKUP_INTERVAL`.
++
++2. **Uploading to Google Drive:**  
++   The backup file is uploaded to the Google Drive folder specified by `GDRIVE_BACKUP_FOLDER_ID` using credentials
++   provided in the `SERVICE_ACCOUNT_FILE`.
++
++3. **Persistent Storage:**  
++   By mounting a local directory to `/path/in/container`, your backup data is stored persistently, ensuring it remains
++   available even if the container is restarted.
++
++## Customization
++
++- **Changing the Backup Schedule:**  
++  Modify the `BACKUP_INTERVAL` environment variable to suit your desired backup frequency.
++
++- **Adjusting File Naming:**  
++  Update the `BACKUP_FILE_NAME_PREFIX` variable to change how backup files are named.
++
++## Contributing
++
++Contributions are welcome! Feel free to fork this repository and submit a pull request with any enhancements, bug fixes,
++or improvements.
++
++## License
++
++This project is licensed under the [MIT License](LICENSE).
+Index: .idea/discord.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"DiscordProjectSettings\">\r\n    <option name=\"show\" value=\"ASK\" />\r\n    <option name=\"description\" value=\"\" />\r\n    <option name=\"applicationTheme\" value=\"default\" />\r\n    <option name=\"iconsTheme\" value=\"default\" />\r\n    <option name=\"button1Title\" value=\"\" />\r\n    <option name=\"button1Url\" value=\"\" />\r\n    <option name=\"button2Title\" value=\"\" />\r\n    <option name=\"button2Url\" value=\"\" />\r\n    <option name=\"customApplicationId\" value=\"\" />\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/discord.xml b/.idea/discord.xml
+--- a/.idea/discord.xml	(revision 0e12e79d9c2a287a4eb42fe4fbf162d8c19d8045)
++++ b/.idea/discord.xml	(date 1741242471911)
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+   <component name="DiscordProjectSettings">
+-    <option name="show" value="ASK" />
++    <option name="show" value="PROJECT_FILES" />
+     <option name="description" value="" />
+     <option name="applicationTheme" value="default" />
+     <option name="iconsTheme" value="default" />
