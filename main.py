@@ -10,11 +10,11 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # Define variables
-WORLD = os.getenv('WORLD', 'world')
-SERVICE_ACCOUNT = 'tora.json'
+DIRECTORY = os.getenv('DIRECTORY', '/data')
+SERVICE_ACCOUNT = os.getenv('SERVICE_ACCOUNT', 'credentials.json')
 DRIVE_BACKUP_DIR = os.getenv('DRIVE_BACKUP_DIR', '1pBX-Lt3upeb519D17_XK4PH-Mbzbmbud')
 BACKUP_INTERVAL = os.getenv('BACKUP_INTERVAL', '1d')
-
+FILE_PREFIX = os.getenv('FILE_PREFIX', 'backup')
 
 def sleep(duration: str):
     # Dictionary to convert units to seconds
@@ -44,10 +44,10 @@ def sleep(duration: str):
     time.sleep(total_seconds)
 
 
-def create_backup(directory: str = WORLD) -> io.BytesIO:
+def create_backup(directory: str = DIRECTORY) -> io.BytesIO:
     archive = io.BytesIO()
     with tarfile.open(fileobj=archive, mode='w:gz') as tar:
-        tar.add(f'/data/{directory}', arcname=f'/')
+        tar.add(f'{directory}', arcname=f'/')
 
     archive.seek(0)
 
@@ -61,7 +61,7 @@ def upload_to_gdrive(archive: io.BytesIO):
     )
     service = build('drive', 'v3', credentials=creds)
 
-    file_name = f'minecraft_backup_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.tar.gz'
+    file_name = f'{FILE_PREFIX}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.tar.gz'
 
     file_metadata = {
         'name': file_name,
@@ -85,7 +85,8 @@ def backup():
 
 
 if __name__ == '__main__':
-    print('Starting backup process...')
+    print(f'Backup process started! Sleeping for {BACKUP_INTERVAL} before first backup...')
+    sleep(BACKUP_INTERVAL)
     while True:
         backup()
         sleep(BACKUP_INTERVAL)
