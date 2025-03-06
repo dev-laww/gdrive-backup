@@ -21,11 +21,11 @@ ENV VIRTUAL_ENV=/app/.venv \
 
 WORKDIR /app
 
-ARG SERVICE_ACCOUNT
-COPY ${SERVICE_ACCOUNT:-credentials.json} ./credentials.json
-
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
 COPY main.py .
 
-ENTRYPOINT ["python", "-u", "/app/main.py"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh", "python", "-u", "/app/main.py"]

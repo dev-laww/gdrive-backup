@@ -10,9 +10,9 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # Define variables
-DIRECTORY = os.getenv('DIRECTORY', '/data')
-SERVICE_ACCOUNT = os.getenv('SERVICE_ACCOUNT', 'credentials.json')
-DRIVE_BACKUP_DIR = os.getenv('DRIVE_BACKUP_DIR', '1pBX-Lt3upeb519D17_XK4PH-Mbzbmbud')
+DIRECTORY = os.getenv('DIRECTORY')
+SERVICE_ACCOUNT = os.getenv('SERVICE_ACCOUNT', 'service-account.json')
+DRIVE_BACKUP_DIR = os.getenv('DRIVE_BACKUP_DIR')
 BACKUP_INTERVAL = os.getenv('BACKUP_INTERVAL', '1d')
 FILE_PREFIX = os.getenv('FILE_PREFIX', 'backup')
 
