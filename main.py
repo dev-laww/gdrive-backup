@@ -8,10 +8,11 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # Define variables
-DIRECTORY = os.getenv('BACKUP_DIRECTORY').replace("\"", "").replace("\'", "")
+DIRECTORY = os.getenv('BACKUP_DIRECTORY').strip('"\'')
 SERVICE_ACCOUNT = '/service-account.json'
-DRIVE_BACKUP_DIR = os.getenv('GDRIVE_BACKUP_FOLDER_ID').replace("\"", "").replace("\'", "")
-BACKUP_FILE_NAME_PREFIX = os.getenv('FILE_PREFIX', 'backup').replace("\"", "").replace("\'", "")
+DRIVE_BACKUP_DIR = os.getenv('GDRIVE_BACKUP_FOLDER_ID').strip('"\'')
+BACKUP_FILE_NAME_PREFIX = os.getenv('FILE_PREFIX', 'backup').strip('"\'')
+COPIES_TO_KEEP = int(os.getenv('COPIES_TO_KEEP', 5))
 
 
 def create_backup(directory: str = DIRECTORY) -> io.BytesIO:
@@ -31,6 +32,17 @@ def upload_to_gdrive(archive: io.BytesIO):
     )
     service = build('drive', 'v3', credentials=creds)
 
+    # Delete old backups
+    files = service.files().list(q=f"'{DRIVE_BACKUP_DIR}' in parents").execute()
+    files = files.get('files', [])
+    files.sort(key=lambda x: datetime.fromisoformat(x['createdTime'].rstrip('Z')))
+
+    if len(files) >= COPIES_TO_KEEP:
+        for file in files[COPIES_TO_KEEP:]:
+            service.files().delete(fileId=file['id']).execute()
+
+        print(f'{len(files) - COPIES_TO_KEEP} old backups deleted')
+
     file_name = f'{BACKUP_FILE_NAME_PREFIX}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.tar.gz'
 
     file_metadata = {
@@ -43,7 +55,7 @@ def upload_to_gdrive(archive: io.BytesIO):
     return f'https://drive.google.com/file/d/{file["id"]}'
 
 
-if __name__ == '__main__':
+def main():
     print(f'Creating backup for {DIRECTORY}...')
 
     archive = create_backup()
@@ -51,3 +63,7 @@ if __name__ == '__main__':
     archive.close()
 
     print(f'Backup {datetime.now()} successful! {file_url}')
+
+
+if __name__ == '__main__':
+    main()
